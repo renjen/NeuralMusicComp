@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Generated submission files (too large / auto-generated)
+notebooks/workbook_executed.ipynb
+workbook.html
+
+# macOS
+.DS_Store
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+
+# Assignment-specific excludes
+Assign2Directions.md
+REQUIREMENTS.md
+video_url.txt
