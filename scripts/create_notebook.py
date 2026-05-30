@@ -1155,9 +1155,10 @@ with torch.no_grad():
             mask = t != REST_TOKEN
             ce_all[i] += (p[mask] == t[mask]).sum().item()
             pc_all[i] += ((p[mask] % 12) == (t[mask] % 12)).sum().item()
-            total      = mask.sum().item()
+            if i == 0:
+                total += mask.sum().item()
 
-total = max(total, 1)  # safe fallback
+total = max(total, 1)
 
 voice_names_harm = ["Alto", "Tenor", "Bass"]
 acc_df = pd.DataFrame({
@@ -1371,7 +1372,7 @@ nb.metadata.update({
     }
 })
 
-out_path = "workbook.ipynb"
+out_path = "notebooks/workbook.ipynb"
 with open(out_path, "w") as f:
     nbformat.write(nb, f)
 

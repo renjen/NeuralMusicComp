@@ -1,263 +1,231 @@
-# Presentation Script & Slide Guide
-## CSE 153 Assignment 2 — Neural Music Composer
-**Target: ~20 minutes total**
+# Presentation Script — Neural Music Comp
+**22 slides | ~20 minutes | 3 speakers**
 
 ---
 
-## SLIDE 1 — Title / Intro
-**On the slide:**
-- Title: "Neural Music Composer"
-- Subtitle: "Generating Bach-style Music with LSTMs"
-- Your name
-- Two tasks: Unconditioned Melody Generation + Harmonization
+## Speaker Split
 
-**What to say:**
-> "For this assignment I trained two machine learning models on a dataset of Bach chorales — classical piano pieces from the 1700s. The first task is unconditioned generation, meaning the model learns to compose melodies completely from scratch. The second task is harmonization, where I give the model a melody and it generates the harmony underneath it. Both tasks use the same dataset and the same type of model — an LSTM neural network."
+| Speaker | Slides | Section |
+|---------|--------|---------|
+| **Renee** | 1–8 | Title, Overview, Task 1 Data (easy — all visuals + stats) |
+| **Aditi** | 9–12 | Task 1 Modeling, Evaluation, Related Work |
+| **Chris** | 13–22 | All of Task 2 + Summary |
 
 ---
 
 ---
 
-# TASK 1 — Unconditioned Melody Generation
-**(~8-9 minutes)**
+# RENEE'S PART (~7 minutes)
 
 ---
 
-## SLIDE 2 — Task 1: Data (Context)
-**On the slide:**
-- Title: "Dataset — Bach Chorales"
-- ~370 four-part chorales by J.S. Bach (BWV 250–438)
-- Written in the 17th–18th century as Lutheran hymn harmonizations
-- Available built-in to the `music21` Python library (no downloading needed)
-- Each piece has 4 voices: Soprano, Alto, Tenor, Bass
-- We use the **soprano voice** for Task 1
-
-**What to say:**
-> "The dataset I used is the Bach Chorale corpus, which contains about 370 four-part harmonizations written by Bach. These are short hymn-based pieces, each with a soprano, alto, tenor, and bass voice. What's convenient is that this dataset is built directly into the music21 Python library, so there's no manual downloading — it loads automatically. For Task 1, I only use the soprano voice, which is the top melody line."
+## Slide 1 — Title
+**Say:**
+> "Hi everyone — our project is called Neural Music Composer. We trained two machine learning models on a dataset of classical music by Bach to generate new music. I'm Renee, and I'll be walking through our overview and our first task's data. Aditi will cover the modeling and results for Task 1, and Chris will cover Task 2."
 
 ---
 
-## SLIDE 3 — Task 1: Data (Pre-processing)
-**On the slide:**
-- Quantized all notes to **quarter-note beats** (1 beat = 1 token)
-- Each note represented as a **MIDI pitch integer** (0–127)
-- Special tokens: REST (0), START (128), END (129) → vocabulary size = 130
-- Sliding window sequences of length 32
-- Split: **80% train / 10% val / 10% test** at the chorale level
+## Slide 2 — Overview
+**Say:**
+> "The big idea is this: we used a dataset called the Bach Chorale corpus, which is a collection of about 370 classical music pieces that comes built into a Python library called music21. We used it to train two different neural network models.
 
-**What to say:**
-> "To prepare the data I quantized every note to quarter-note resolution — meaning I sample what note is playing once per beat. Each note is represented as a MIDI number, which is just an integer from 0 to 127. I also added special tokens for rests, the start of a piece, and the end of a piece, giving a vocabulary of 130 tokens. I then created training windows of 32 notes each using a sliding window approach, and split the data 80/10/10 into train, validation, and test sets — importantly splitting at the chorale level so no chorale leaks between splits."
+> Task 1 is unconditioned generation — the model looks at previous notes and learns to predict what note should come next, then uses that to generate a brand new melody from scratch.
 
----
+> Task 2 is harmonization — you give it a melody, and it generates the other three voices underneath to create a full four-part piece.
 
-## SLIDE 4 — Task 1: Data (Visualizations)
-**On the slide:**
-- Screenshot: **Pitch Distribution plot** (the 2x2 grid of all 4 voices)
-- Screenshot: **Chorale Length Histogram**
-- Screenshot: **Melodic Interval Distribution**
-- Key stats: X chorales loaded, avg length = X beats, soprano range = MIDI 60–81
-
-**What to say:**
-> "Looking at the data — the pitch distributions show that the soprano voice sits mostly between MIDI 60 and 81, which is C4 to A5, a comfortable vocal range. The chorale length histogram shows most pieces are between 20 and 60 beats long. Most interestingly, the interval distribution shows that the vast majority of melodic steps are small — plus or minus 1 or 2 semitones. This is called stepwise motion and is a defining feature of Baroque vocal writing. So a well-trained model should reproduce this property."
+> Both tasks use the same core setup: notes are represented as MIDI numbers, we quantize to quarter-note beats, and we use special start, end, and rest tokens."
 
 ---
 
-## SLIDE 5 — Task 1: Modeling (Problem Formulation)
-**On the slide:**
-- **Input:** sequence of notes x₁, x₂, ... xₜ
-- **Output:** probability distribution over the next note xₜ₊₁
-- **Objective:** minimize cross-entropy loss (maximize likelihood of training data)
-- **Inference:** autoregressive sampling with temperature control
-
-**What to say:**
-> "I frame this as a language modeling problem. Given the sequence of notes so far, the model predicts a probability distribution over what the next note should be. During training, the objective is to minimize cross-entropy loss — essentially, the model is penalized for assigning low probability to the actual next note. At generation time, I sample autoregressively: feed in a start token, sample the next note, feed that back in, and repeat. Temperature controls how random the sampling is — lower temperature makes the output more conservative, higher makes it more creative."
+## Slide 3 — Task 1 Title Slide
+**Say:**
+> "Let's dive into Task 1 — Unconditioned Melody Generation. This falls under what the assignment calls symbolic unconditioned generation — symbolic because the output is notes, not audio, and unconditioned because there's no input, the model just generates freely."
 
 ---
 
-## SLIDE 6 — Task 1: Modeling (Architecture)
-**On the slide:**
-- Comparison table:
+## Slide 4 — Dataset: Bach Chorales
+**Say:**
+> "The dataset is the Bach Chorale corpus — roughly 370 four-part harmonizations written by J.S. Bach between the 1700s. Each piece is a short Lutheran hymn arranged for four voices: soprano, alto, tenor, and bass. What's really convenient is that this entire dataset is embedded inside the music21 Python library, so we didn't need to download anything — it loads automatically when you run the code.
 
-| Model | Pros | Cons |
-|-------|------|------|
-| Markov Chain | Fast, simple | No long-range structure |
-| **LSTM (chosen)** | Long-range dependencies, efficient | Harder to interpret |
-| Transformer | State of the art | Needs more data, more complex |
-
-- Architecture diagram:
-```
-Input → Embedding(130→64) → LSTM(2 layers, 256 hidden) → Linear(256→130) → Softmax
-```
-- Training: Adam optimizer, lr=0.001, batch size=128, early stopping
-
-**What to say:**
-> "I compared three possible approaches. A Markov chain is simple and fast but can only look back one or two notes — it has no memory of the broader melodic context. A Transformer would be state of the art but requires more data and is more complex to implement. I chose a 2-layer LSTM as the middle ground — it can capture dependencies across 30+ notes, which is enough for a full chorale phrase, and it trains in just a few minutes on CPU. The architecture is an embedding layer that maps each token to a 64-dimensional vector, two LSTM layers with 256 hidden units, and a final linear layer that outputs logits over all 130 tokens."
+> For Task 1, we only use the soprano voice, which is the top melody line."
 
 ---
 
-## SLIDE 7 — Task 1: Evaluation
-**On the slide:**
-- Screenshot: **Loss curves** (train vs validation)
-- Screenshot: **Perplexity bar chart** (LSTM vs bigram vs unigram)
-- Table of results:
+## Slide 5 — Data Pre-processing
+**Say:**
+> "Here's how we prepared the data. There are four steps.
 
-| Model | Perplexity |
-|-------|-----------|
-| LSTM (test) | X.XX |
-| Bigram baseline | X.XX |
-| Unigram baseline | X.XX |
+> First, we quantize — meaning we sample one note per quarter-note beat. So instead of capturing every tiny rhythmic detail, we simplify to one token per beat.
 
-- Melodic property comparison table (% stepwise motion, mean range)
+> Second, we encode each note as a MIDI pitch integer — a number from 0 to 127 — and add three special tokens: REST for silences, START to mark the beginning of a piece, and END to mark the end. This gives us a vocabulary of 130 tokens total.
 
-**What to say:**
-> "I evaluate the model using perplexity, which measures how surprised the model is by the test data — lower is better. My LSTM achieves significantly lower perplexity than both the unigram baseline, which just samples from note frequencies, and the bigram baseline, which only looks at the previous note. Beyond perplexity I also compared melodic properties of the generated sequences versus real Bach — specifically the percentage of stepwise motion and the pitch range. The generated melodies have similar stepwise motion rates to real Bach, which suggests the model has learned this stylistic property even though it's not directly in the training objective."
+> Third, we create sliding windows of 32 notes. So for each sequence of 32 consecutive notes, we ask the model to predict the next one.
+
+> Fourth, we split the data at the chorale level — 80% for training, 10% for validation, and 10% for testing. Splitting at the chorale level is important so that notes from the same piece don't end up in both train and test.
+
+> That gives us 16,903 training windows, 1,816 validation windows, and 2,289 test windows."
 
 ---
 
-## SLIDE 8 — Task 1: Related Work
-**On the slide:**
-- **Allan & Williams (2005)** — first probabilistic approach to Bach; used HMMs
-- **Waite / Magenta (2016)** — Google Brain LSTM for melody generation
-- **Music Transformer (Huang et al., 2018)** — attention-based, better long-range structure
-- How our work compares: similar PPL to Waite on small corpora; lacks long-range attention of Transformer
+## Slide 6 — Exploratory Data Analysis (Stats Table)
+**Say:**
+> "Let's look at what's actually in the data. Each voice has around 20,000 notes across all 368 chorales. The soprano, which is what we're training on for Task 1, uses 23 unique pitches and has a mean MIDI pitch of about 70, which is around B4 — a pretty comfortable singing range. The pitch range is MIDI 57 to 81, which is A3 to A5.
 
-**What to say:**
-> "This problem has a rich history. Allan and Williams in 2005 were among the first to apply probabilistic ML to Bach, using Hidden Markov Models. Google's Magenta project in 2016 showed that LSTMs produce coherent short-range melodic phrases — which is essentially what I've replicated here. The Music Transformer from 2018 is the current state of the art, using relative attention to capture structure across hundreds of notes. My model is most similar to the Magenta approach — it handles local melodic structure well but doesn't have the long-range coherence of a Transformer. That would be the natural next step."
+> Interesting to note: the bass has the widest range — from MIDI 36 all the way to 64 — which is typical in choral writing where the bass covers a lot of harmonic ground.
+
+> The average chorale is 55 beats long, and soprano melodies mostly move in small steps, which is characteristic of Baroque vocal writing."
+
+---
+
+## Slide 7 — Pitch Distribution (Charts)
+**Say:**
+> "These four histograms show the pitch distributions for each voice. You can see that each voice occupies a distinct range — soprano clusters around the 60s and 70s, alto a little lower, tenor lower still, and bass down in the 40s and 50s. The distributions look roughly bell-shaped, which reflects the natural constraints of singing — voices stay close to their center of range and don't jump around randomly.
+
+> The dashed vertical lines mark octave boundaries — you can see how cleanly each voice fits within its expected range."
+
+---
+
+## Slide 8 — Chorale Length & Melodic Interval (Charts)
+**Say:**
+> "Two more data visualizations. On the left is the distribution of chorale lengths — most pieces are between 30 and 60 quarter-note beats, with a mean of 55.3. The red dashed line marks that mean. A few outliers go up to 200 beats.
+
+> On the right is the melodic interval distribution for the soprano — meaning, how many semitones does the melody jump between consecutive notes. You can see a huge spike at 0 — a lot of repeated notes — and then smaller steps of plus or minus 1 and 2 semitones dominate. Bigger jumps are rare. This stepwise motion is a defining feature of Bach's melodic style, and it's something we can actually measure in our generated melodies to see if the model learned it."
 
 ---
 
 ---
 
-# TASK 2 — Harmonization
-**(~8-9 minutes)**
+# ADITI'S PART (~6 minutes)
 
 ---
 
-## SLIDE 9 — Task 2: Data (Context)
-**On the slide:**
-- Same Bach Chorale corpus — now using **all 4 voices**
-- Input: soprano melody (given)
-- Output: alto + tenor + bass (generated)
-- Same quantization and vocabulary as Task 1
-- This is the classic "auto-harmonization" problem
-
-**What to say:**
-> "For Task 2 I use the same dataset, but now I need all four voices. The problem is: given the soprano melody, can the model generate the harmony underneath? This is called auto-harmonization and it's one of the oldest problems in algorithmic composition. Bach's chorales are the standard benchmark for this because they follow clear harmonic rules — so it's easy to tell when a model is doing something musically wrong."
+## Slide 9 — Model Formulation
+**Say:**
+> "Now let's talk about how we turned this into a machine learning problem. The input is a sequence of soprano tokens — x1, x2, up to xt. The model predicts p of x at t+1 given all previous tokens — in other words, a probability distribution over the 130 possible next notes. The objective during training is to minimize cross-entropy loss, which means we penalize the model when it assigns low probability to the actual next note. At generation time, we sample autoregressively — we feed in a start token, sample the next note, feed that back in, and repeat until we get an end token."
 
 ---
 
-## SLIDE 10 — Task 2: Data (Visualizations)
-**On the slide:**
-- Screenshot: **Piano roll** of a sample chorale (all 4 voices)
-- Screenshot: **Soprano-Bass interval histogram**
-- Key observation: peaks at 12 (octave), 19 (octave + 5th), 7 (5th) → tonal structure
+## Slide 10 — Modeling: Architecture
+**Say:**
+> "We compared three types of models. A Markov chain is fast and simple but can only look back one note at a time — it has no real memory. A Transformer is state of the art for this kind of sequence modeling but requires more data and is more complex to implement. We chose an LSTM, which is a good middle ground — it can remember context across 30 or more notes, which is enough for a full phrase, and it trains in minutes on a CPU.
 
-**What to say:**
-> "The piano roll shows all four voices moving together — you can see how the soprano and bass tend to move in opposite directions, which is a hallmark of Bach's voice leading. The interval histogram between soprano and bass shows strong peaks at 7, 12, and 19 semitones — perfect 5ths and octaves — which is exactly what you'd expect from tonal harmony. This tells us the data has clear structure the model can learn."
+> The architecture is: an embedding layer that maps each of the 130 tokens to a 64-dimensional vector, then two LSTM layers with 256 hidden units and dropout of 0.3 to prevent overfitting, then a linear layer that outputs 130 logits for the next note.
 
----
-
-## SLIDE 11 — Task 2: Modeling (Problem Formulation)
-**On the slide:**
-- **Input:** full soprano sequence s₁, s₂, ... sₜ
-- **Output:** alto, tenor, bass sequences simultaneously
-- **Objective:** sum of cross-entropy losses across all 3 voices
-- Architecture:
-
-```
-Soprano → Embedding → LSTM(2 layers, 256) → ┬→ Linear → Alto
-                                              ├→ Linear → Tenor
-                                              └→ Linear → Bass
-```
-
-**What to say:**
-> "I frame harmonization as a conditional sequence prediction problem. The soprano is the input condition, and the model predicts all three other voices at each time step. Instead of one output head, I use three parallel linear layers — one for alto, one for tenor, one for bass — all fed from the same LSTM hidden state. The total loss is the average cross-entropy across all three voices. This means the model sees the soprano context at every step but predicts each voice independently — they don't condition on each other."
+> We trained with the Adam optimizer, learning rate 0.001, batch size 128, and used early stopping to prevent overfitting."
 
 ---
 
-## SLIDE 12 — Task 2: Modeling (Approach Comparison)
-**On the slide:**
+## Slide 11 — Evaluation (Task 1)
+**Say:**
+> "We evaluate using perplexity, which measures how surprised the model is by unseen notes — lower perplexity means the model has learned the distribution better. We compare against two baselines: a unigram model that just samples notes based on how often they appear in training data, and a bigram model that looks at the previous single note to predict the next.
 
-| Model | Pros | Cons |
-|-------|------|------|
-| Rule-based (figured bass) | Interpretable | Needs expert rules, can't learn from data |
-| HMM (Allan & Williams) | Probabilistic | Limited context |
-| **LSTM 3-head (chosen)** | Learns from data, handles soprano context | Voices independent, no inter-voice constraints |
-| DeepBach (Gibbs sampling) | Joint voice modeling, state of the art | Very complex to implement |
+> Our LSTM achieves a test perplexity of 5.3. The bigram gets 8.0, and the unigram gets 16.1. So our model is significantly better than both baselines — it's learned real sequential structure.
 
-**What to say:**
-> "The main modeling choice here is how to handle the interaction between voices. The simplest approach is rule-based, but that requires hand-coding music theory. DeepBach, the state of the art from 2017, uses Gibbs sampling to model all four voices jointly — but it's significantly more complex to implement. My approach is a practical middle ground: one LSTM that encodes the soprano, with three separate prediction heads for the other voices. The limitation is that the voices don't condition on each other — so the model might generate an alto and tenor that clash with each other even if both individually make sense given the soprano."
+> We also measured melodic properties of our generated output. The mean interval is 1.41 semitones, and 89.4% of consecutive notes are stepwise motion — which closely matches what we measured in the real Bach data on slide 8. So the model hasn't just memorized low perplexity — it's actually generating music with the right stylistic properties."
 
 ---
 
-## SLIDE 13 — Task 2: Evaluation
-**On the slide:**
-- Screenshot: **Training loss curves**
-- Screenshot: **Accuracy bar chart** (LSTM exact vs pitch-class vs majority baseline)
-- Results table:
+## Slide 12 — Related Work (Task 1)
+**Say:**
+> "For context, here's how our work fits into the research landscape. Allan and Williams in 2005 were among the first to apply probabilistic ML to Bach, using Hidden Markov Models. Google's Magenta project in 2016 showed that LSTMs can generate coherent short-range melodic phrases — which is essentially what we replicated here. The Music Transformer from 2018 is the current state of the art, using attention to model structure across hundreds of notes. And MIDI-VAE from 2018 adds a latent space for more controlled generation.
 
-| Voice | Exact Acc | Pitch-Class Acc | Majority Baseline |
-|-------|-----------|-----------------|-------------------|
-| Alto  | X% | X% | X% |
-| Tenor | X% | X% | X% |
-| Bass  | X% | X% | X% |
-
-- Screenshot: **Piano roll comparison** (reference Bach vs generated)
-
-**What to say:**
-> "I evaluate using per-voice accuracy — does the model predict the exact pitch? I compare against a majority-class baseline that always predicts the most common pitch for each voice. The LSTM beats the baseline on all three voices, showing it learned something beyond just frequency. Pitch-class accuracy is higher than exact accuracy across the board — meaning the model gets the right note name but sometimes puts it in the wrong octave. The piano roll comparison shows the generated harmony follows the soprano reasonably well, though it's smoother and less varied than Bach's original — which makes sense given the model doesn't have explicit knowledge of harmonic rules."
-
----
-
-## SLIDE 14 — Task 2: Related Work
-**On the slide:**
-- **Allan & Williams (2005)** — HMM-based harmonization, first ML approach
-- **BachBot / Liang (2016)** — LSTM seq2seq, competitive Turing test results
-- **DeepBach / Hadjeres et al. (2017)** — Gibbs sampling, humans preferred it over Bach ~50% of the time
-- **Music Transformer (2018)** — attention-based, better long-range harmony
-- How our work compares: similar to BachBot approach; main gap is no joint voice modeling
-
-**What to say:**
-> "DeepBach from 2017 is the landmark result here — human listeners preferred its output over real Bach about 50% of the time, which is remarkable. The key difference from my approach is that DeepBach uses bidirectional LSTMs and Gibbs sampling to model all voices jointly, iteratively refining the harmony. BachBot from 2016 is closer to what I built — a unidirectional LSTM that predicts voices given soprano — and still achieved strong results on a Turing test. My results are in the same ballpark for accuracy metrics, and the main gap is the lack of joint voice modeling and the absence of explicit music theory constraints."
+> Our model is most comparable to the Magenta LSTM — strong on local note-to-note patterns, but the main gap is that it doesn't reliably produce longer phrase-level repetition, which would require something like the Music Transformer's attention mechanism."
 
 ---
 
 ---
 
-## SLIDE 15 — Summary + Play Music
-**On the slide:**
-- Summary table:
-
-| | Task 1 | Task 2 |
-|--|--------|--------|
-| Goal | Generate melody from scratch | Harmonize a given melody |
-| Model | 2-layer LSTM LM | 2-layer LSTM + 3 heads |
-| Key metric | Perplexity | Per-voice accuracy |
-| Beats baseline? | Yes | Yes |
-
-- "Now let's listen to the output..."
-
-**What to say:**
-> "To summarize — both models were trained from scratch on the Bach Chorale corpus and both outperform their respective baselines, showing the LSTMs learned real musical structure beyond just frequency patterns. The main limitations are the lack of long-range structure in Task 1 and the independent voice prediction in Task 2 — both of which point to natural extensions using Transformers or joint modeling. Now let's actually listen to what the models generated."
-
-*[Play symbolic_unconditioned.mid, then symbolic_conditioned.mid]*
+# CHRIS'S PART (~7 minutes)
 
 ---
 
-## Timing Guide
+## Slide 13 — Task 2 Title Slide
+**Say:**
+> "Now moving on to Task 2 — Harmonization. This is what the assignment calls symbolic conditioned generation. Conditioned means we're given an input — the melody — and we generate an output conditioned on that input. The goal is to take just the top melody line and have the model fill in the harmony underneath."
 
-| Slide | Time |
-|-------|------|
-| Intro | 1 min |
-| Task 1 Data (3 slides) | 4 min |
-| Task 1 Model (2 slides) | 3 min |
-| Task 1 Evaluation | 2 min |
-| Task 1 Related Work | 2 min |
-| Task 2 Data (2 slides) | 3 min |
-| Task 2 Model (2 slides) | 3 min |
-| Task 2 Evaluation | 2 min |
-| Task 2 Related Work | 2 min |
-| Summary | 1 min |
-| **Total** | **~23 min** |
+---
 
-Trim by going slightly faster through the data slides — those are the most visual and least verbal.
+## Slide 14 — Task 2 Data
+**Say:**
+> "We reuse the exact same Bach Chorale dataset from Task 1 — same quantization, same vocabulary, same train/val/test split. The difference is that now we use all four voices instead of just soprano.
+
+> For the exploratory analysis, we plotted a Soprano-Bass interval histogram, which shows how far apart the soprano and bass tend to be at each moment. You can see peaks at 7 semitones — a perfect 5th — and at 12 and 19 — an octave and an octave plus a 5th. These are the most consonant intervals in Western music, so this histogram is basically confirming that the dataset has real tonal structure the model can learn from.
+
+> We also have a piano roll visualization — that's the next slide."
+
+---
+
+## Slide 15 — Piano Roll
+**Say:**
+> "This is the piano roll for one chorale — each of the four colored lines is a different voice, plotted against time in quarter-note beats. You can see how the soprano stays at the top, alto and tenor in the middle, and bass at the bottom. You can also see how all four voices move roughly together — they change notes at similar times — which is the block-chord style typical of Bach chorales. This gives us a visual sense of what the model needs to learn."
+
+---
+
+## Slide 16 — Task 2 Modeling
+**Say:**
+> "For Task 2, the inputs are the full soprano sequence, and the outputs are alto, tenor, and bass simultaneously. We optimize by taking the average of cross-entropy losses across all three voices.
+
+> We considered four approaches. Rule-based figured bass is interpretable but requires hand-coding music theory. An HMM is probabilistic but has limited context. DeepBach, which is the state of the art from 2017, uses Gibbs sampling to model all four voices jointly — but it's significantly more complex to implement. We chose an LSTM because it learns directly from data and handles the soprano context well.
+
+> The architecture is the same LSTM backbone as Task 1, but instead of one output head, we have three parallel linear layers — one each for alto, tenor, and bass. The main limitation is that each voice is predicted independently — they don't condition on each other — so the model might not enforce rules like no parallel fifths between voices."
+
+---
+
+## Slide 17 — Evaluation: Training Curves
+**Say:**
+> "Here are the training curves for the harmonizer. Both training loss and validation loss drop steeply in the first few epochs and then level off. The fact that validation loss tracks training loss closely — without diverging — tells us the model isn't overfitting. We used early stopping which kicked in around epoch 27."
+
+---
+
+## Slide 18 — Evaluation: Accuracy Table
+**Say:**
+> "For evaluation, we measure per-voice accuracy — does the model predict the exact pitch? We compare against a majority-class baseline that always predicts the single most common pitch for each voice.
+
+> The LSTM outperforms the baseline for all three voices. For alto, the LSTM gets about 32% exact accuracy versus the majority baseline of 15%. For tenor it's 27% versus 17%, and for bass 21% versus 14%.
+
+> The pitch-class accuracy — which checks if the model got the right note name, ignoring octave — is similar to exact accuracy. This means when the model is wrong, it's not just getting the wrong octave — it's actually getting a different note, which suggests the harmony isn't trivially easy."
+
+---
+
+## Slide 19 — Evaluation: Piano Roll Comparison
+**Say:**
+> "This is perhaps the most intuitive evaluation — a direct visual comparison between Bach's original harmonization on top and our generated harmonization on the bottom. The soprano line in blue is the same in both — that's the input. The generated alto, tenor, and bass on the bottom follow the soprano reasonably well. The shapes look similar — you can see the voices mostly staying in their correct ranges and moving in similar directions to the reference. The generated version is smoother and less varied, which makes sense — the model has learned average behavior from the training set, not the specific harmonic choices Bach would make."
+
+---
+
+## Slide 20 — Related Work (Task 2)
+**Say:**
+> "For Task 2, the key benchmark is DeepBach from Hadjeres et al. in 2017 — their model was so convincing that human listeners preferred its output over real Bach about 50% of the time. The key difference from our approach is that DeepBach uses bidirectional LSTMs and Gibbs sampling to jointly model all four voices, iteratively refining the harmony. BachBot from 2016 is actually the closest to what we built — a unidirectional LSTM — and it still performed well on a Turing test. Our results are in a similar range. The main gap between our work and the state of the art is the lack of joint voice modeling and explicit harmonic constraints."
+
+---
+
+## Slide 21 — Summary
+**Say:**
+> "To wrap up — both models were trained from scratch on the Bach Chorales and both beat their baselines. Task 1 gets a perplexity of 5.3 versus 8.0 for bigram. Task 2 gets accuracy roughly double the majority-class baseline across all three voices. The main limitations are long-range structure for Task 1 and independent voice prediction for Task 2 — both natural extensions toward Transformers or joint modeling."
+
+---
+
+## Slide 22 — Thank You
+**Say:**
+> "Thanks — now let's listen to what the models actually generated."
+
+*[Play symbolic_unconditioned.mid — the generated melody]*
+*[Play symbolic_conditioned.mid — the 4-voice harmonization]*
+
+---
+
+---
+
+## Quick Reference: Key Numbers to Remember
+
+| Fact | Value |
+|------|-------|
+| Chorales in dataset | 368 |
+| Avg chorale length | 55.3 beats |
+| Vocabulary size | 130 tokens |
+| Training windows (Task 1) | 16,903 |
+| LSTM test perplexity | 5.3 |
+| Bigram baseline perplexity | 8.0 |
+| Stepwise motion in generated melodies | 89.4% |
+| Alto exact accuracy | 31.9% |
+| Alto majority baseline | 15.2% |
